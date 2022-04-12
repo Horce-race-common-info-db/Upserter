@@ -13,7 +13,10 @@ class ConfirmedBarrierUpserter < Upserter
   end
 
   def upsert
-    return unless File.exist?(@filepath)
+    unless File.exist?(@filepath)
+      @logger.info("File #{@filepath} does not exist.")
+      return
+    end
 
     parse.each do |line|
       statement = client.prepare(query)
@@ -91,7 +94,7 @@ class ConfirmedBarrierUpserter < Upserter
   end
 
   def parse
-    CSV.read(@filepath, headers: true).map do |line|
+    CSV.read(@filepath, headers: true, encoding: 'UTF-8:UTF-8').map do |line|
       {
         horse_id: line[6].to_i,
         racecourse_id: line[0].to_i,

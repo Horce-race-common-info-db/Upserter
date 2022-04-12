@@ -12,7 +12,10 @@ class RaceUpserter < Upserter
   end
 
   def upsert
-    return unless File.exist?(@filepath)
+    unless File.exist?(@filepath)
+      @logger.info("File #{@filepath} does not exist.")
+      return
+    end
 
     parse.each do |line|
       unless course_id(line)
@@ -95,7 +98,7 @@ class RaceUpserter < Upserter
   end
 
   def client
-    Mysql.connect(
+    @connection ||= Mysql.connect(
       "mysql://#{ENV['MYSQL_USER']}:#{ENV['MYSQL_PASSWORD']}@#{ENV['MYSQL_HOST']}:#{ENV['MYSQL_PORT']}/#{ENV['MYSQL_DATABASE']}?charset=utf8mb4"
     )
   end
@@ -125,7 +128,7 @@ class RaceUpserter < Upserter
   end
 
   def parse
-    CSV.read(@filepath, headers: true).map do |line|
+    CSV.read(@filepath, headers: true, encoding: 'UTF-8:UTF-8').map do |line|
       {
         racecourse_id: line[0].to_i,
         held_year: line[1].to_i,
@@ -142,6 +145,7 @@ class RaceUpserter < Upserter
   end
 
   def postprocess
+    @connection.close
     File.delete(@filepath)
   end
 end

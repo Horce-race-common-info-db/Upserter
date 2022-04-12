@@ -4,7 +4,7 @@ require 'csv'
 require_relative './upserter.rb'
 
 class JockeyUpserter < Upserter
-  FILENAME_PREFIX = 'ks/Ks'.freeze
+  FILENAME_PREFIX = 'ks/kza'.freeze
 
   def initialize(filedate)
     @filepath = BASE_FILE_PATH + FILENAME_PREFIX + filedate + FILE_EXTENTION
@@ -13,7 +13,10 @@ class JockeyUpserter < Upserter
   end
 
   def upsert
-    return unless File.exist?(@filepath)
+    unless File.exist?(@filepath)
+      @logger.info("File #{@filepath} does not exist.")
+      return
+    end
 
     parse.each do |line|
       statement = client.prepare(query)
@@ -60,7 +63,7 @@ class JockeyUpserter < Upserter
   end
 
   def parse
-    CSV.read(@filepath, headers: true).map do |line|
+    CSV.read(@filepath, headers: true, encoding: 'UTF-8:UTF-8').map do |line|
       {
         jockey_code: line[0].to_i,
         jockey_name: line[3].trim

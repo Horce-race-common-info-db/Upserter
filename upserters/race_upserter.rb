@@ -22,13 +22,11 @@ class RaceUpserter < Upserter
         course_insert(line)
       end
 
-      unless held_id(line)
-        held_insert(line)
-      end
-
       statement = client.prepare(race_query)
-      if statement.execute(course_id(line), held_id(line), line[:race_round]).size == 0
+      if statement.execute(held_id(line), line[:race_round]).size == 0
         race_insert(line)
+      else
+        race_update(line)
       end
     end
 
@@ -71,20 +69,6 @@ class RaceUpserter < Upserter
     )
   end
 
-  def held_insert(line)
-    statement = client.prepare(held_insert_statement) 
-    statement.execute(
-      line[:racecourse_id],
-      line[:held_year],
-      line[:held_month],
-      line[:held_day],
-      line[:number_of_times],
-      line[:number_of_days],
-      @current_date,
-      @current_date
-    )
-  end
-
   def race_insert(line)
     statement = client.prepare(race_insert_statement) 
     statement.execute(
@@ -94,6 +78,19 @@ class RaceUpserter < Upserter
       line[:race_round],
       @current_date,
       @current_date
+    )
+  end
+
+  def race_update(line)
+    statement = client.prepare(race_query)
+    id = statement.execute(held_id(line), line[:race_round]).first.first
+
+    statement = client.prepare(race_update_statement)
+    statement.execute(
+      cource_id(line),
+      line[:race_name],
+      @current_date,
+      id
     )
   end
 
@@ -112,15 +109,15 @@ class RaceUpserter < Upserter
   end
 
   def race_query
-    'SELECT id FROM races WHERE course_id = ? AND held_id = ? AND race_round = ?'
+    'SELECT id FROM races WHERE held_id = ? AND race_round = ?'
   end
 
   def race_insert_statement
     'INSERT INTO races (name, course_id, held_id, race_round, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
   end
 
-  def held_insert_statement
-    'INSERT INTO helds (racecourse_id, held_year, held_month, held_day, number_of_times, number_of_days, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  def race_update_statement
+    'UPDATE races SET racecource_id = ?, name = ?, updated_at = ? WHERE id = ?'
   end
 
   def course_insert_statement

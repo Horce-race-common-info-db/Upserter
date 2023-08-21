@@ -19,17 +19,32 @@ class RunUpserter < Upserter
     end
 
     parse.each do |line|
+      unless race_id(line)
+        race_insert(line)
+      end
+
       statement = client.prepare(query)
-      if statement.execute(line[:horse_id], race_id(line)).size == 0
-        insert(line)
-      else
-        update(line)
+      begin
+        if statement.execute(line[:horse_id], race_id(line)).size == 0
+          insert(line)
+        else
+          update(line)
+        end
+      rescue Mysql::ServerError::NoReferencedRow2 => _e
+        @logger.error("Error occurs in File #{@filepath} !!!")
+        @logger.error("record: horse_id: #{line[:horse_id]}, race_id: #{race_id(line)} !!!")
+      rescue Mysql::ServerError::BadNullError => _e
+        @logger.error("Error occurs in File #{@filepath} !!!")
+        @logger.error("record: #{line[:held_year]} 年" +
+                      "#{line[:number_of_times]} 回" +
+                      "#{line[:number_of_days]} 日" +
+                      "course_id( #{line[:racecourse_id]} )" +
+                      " #{line[:race_round]} R !!!")
       end
     end
 
-    postprocess
-
     @logger.info("File #{@filepath} reflected in the database.")
+    postprocess
   end
 
   private
@@ -44,6 +59,27 @@ class RunUpserter < Upserter
       line[:number_of_days],
     ).first
     race.first if race
+  end
+
+  def held_id(line)
+    held_statement = client.prepare(held_query)
+    held = held_statement.execute(
+      line[:racecourse_id],
+      line[:held_year],
+      line[:number_of_times],
+      line[:number_of_days],
+    ).first
+    held.first if held
+  end
+
+  def race_insert(line)
+    statement = client.prepare(race_insert_statement)
+    statement.execute(
+      held_id(line),
+      line[:race_round],
+      @current_date,
+      @current_date
+    )
   end
 
   def insert(line)
@@ -81,8 +117,16 @@ class RunUpserter < Upserter
     'SELECT id FROM runs WHERE horse_id = ? AND race_id = ?'
   end
 
+  def held_query
+    'SELECT id FROM helds WHERE racecourse_id = ? AND held_year = ? AND number_of_times = ? AND number_of_days = ?'
+  end
+
   def race_query
     'SELECT r.* FROM races r INNER JOIN helds h ON r.held_id = h.id WHERE r.race_round = ? AND h.racecourse_id = ? AND h.held_year = ? AND h.number_of_times = ? AND h.number_of_days = ?'
+  end
+
+  def race_insert_statement
+    'INSERT INTO races (held_id, race_round, created_at, updated_at) VALUES (?, ?, ?, ?)'
   end
 
   def insert_statement

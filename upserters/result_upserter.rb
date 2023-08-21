@@ -3,8 +3,8 @@ require 'logger'
 require 'csv'
 require_relative './upserter.rb'
 
-class ConfirmedBarrierUpserter < Upserter
-  FILENAME_PREFIX = 'Kyi/Kyi'.freeze
+class ResultUpserter < Upserter
+  FILENAME_PREFIX = 'Sed/Sed'.freeze
 
   def initialize(filedate)
     @filepath = BASE_FILE_PATH + FILENAME_PREFIX + filedate + FILE_EXTENTION
@@ -45,7 +45,7 @@ class ConfirmedBarrierUpserter < Upserter
 
   def run_id(line)
     statement = client.prepare(run_query)
-    run = statement.execute(
+    runs = statement.execute(
       line[:horse_id],
       line[:racecourse_id],
       line[:held_year],
@@ -53,15 +53,14 @@ class ConfirmedBarrierUpserter < Upserter
       line[:number_of_days],
       line[:race_round],
     ).first
-    run.first if run
+    runs.first if runs
   end
 
   def insert(line)
     statement = client.prepare(insert_statement) 
     statement.execute(
       run_id(line),
-      line[:bracket_number],
-      line[:horse_number],
+      line[:place],
       @current_date,
       @current_date
     )
@@ -73,8 +72,7 @@ class ConfirmedBarrierUpserter < Upserter
 
     statement = client.prepare(update_statement) 
     statement.execute(
-      line[:bracket_number],
-      line[:horse_number], 
+      line[:place],
       @current_date,
       id
     )
@@ -87,7 +85,7 @@ class ConfirmedBarrierUpserter < Upserter
   end
 
   def query
-    'SELECT run_id FROM confirmed_barriers WHERE run_id = ?'
+    'SELECT id FROM results WHERE run_id = ?'
   end
 
   def run_query
@@ -95,11 +93,11 @@ class ConfirmedBarrierUpserter < Upserter
   end
 
   def insert_statement
-    'INSERT INTO confirmed_barriers (run_id, bracket_number, horse_number, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO results (run_id, place, created_at, updated_at) VALUES (?, ?, ?, ?)'
   end
 
   def update_statement
-    'UPDATE confirmed_barriers SET bracket_number = ?, horse_number = ?, updated_at = ? WHERE run_id = ?'
+    'UPDATE results SET place = ?, updated_at = ? WHERE run_id = ?'
   end
 
   def parse
@@ -111,8 +109,7 @@ class ConfirmedBarrierUpserter < Upserter
         number_of_times: line[2].to_i,
         number_of_days: line[3].to_i(16),
         race_round: line[4].to_i,
-        bracket_number: line[60].to_i,
-        horse_number: line[5].to_i
+        place: line[22].to_i
       }
     end
   end
